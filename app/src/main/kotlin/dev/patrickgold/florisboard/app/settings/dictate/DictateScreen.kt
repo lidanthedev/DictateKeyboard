@@ -343,6 +343,8 @@ fun DictateRecordingScreen() = FlorisScreen {
             modifier = Modifier.settingsSearchAnchor("dictate__realtime_title"),
             title = stringRes(R.string.dictate__realtime_title),
         )
+        // Which provider and model stream, independent of batch transcription; only while streaming is on.
+        RealtimeProviderPreferences()
         // All long-form settings live behind one entry that opens a single dialog (#170).
         val longformMode by prefs.dictate.longformMode.collectAsState()
         val longformSeconds by prefs.dictate.longformAutoSplitSeconds.collectAsState()

@@ -82,6 +82,7 @@ import dev.patrickgold.florisboard.dictate.provider.RealtimeTailWatch
 import dev.patrickgold.florisboard.dictate.provider.AudioContainer
 import dev.patrickgold.florisboard.dictate.provider.PromptReasoning
 import dev.patrickgold.florisboard.dictate.provider.ProviderAccount
+import dev.patrickgold.florisboard.dictate.provider.realtimeAccount
 import dev.patrickgold.florisboard.dictate.provider.ProviderListing
 import dev.patrickgold.florisboard.dictate.provider.ProviderPreset
 import dev.patrickgold.florisboard.dictate.provider.ProviderRegistry
@@ -349,6 +350,7 @@ object DictateController {
     private var realtimeSession: RealtimeSession? = null
     private val realtimeFinal = StringBuilder()      // accumulated finalized segments
     @Volatile private var realtimeFailed = false     // stream errored → fall back to batch on stop
+    @Volatile private var realtimeError: String? = null // why it errored, for the fallback notice
     private var realtimeClosed: CompletableDeferred<Unit>? = null
     private var realtimeContext: Context? = null     // app context to edit the field's provisional text
     private val realtimeShown = StringBuilder()       // text currently committed to the field this session
@@ -2728,7 +2730,7 @@ object DictateController {
     /** The realtime wire API to use for the active transcription account, or null if realtime shouldn't run. */
     private fun realtimeApiForActiveAccount(): RealtimeApi? {
         if (!prefs.dictate.realtimeTranscription.get()) return null
-        val account = transcriptionAccount()
+        val account = realtimeAccount()
         val preset = presetFor(account)
         // A server of the user's own usually has no key at all (#249), so requiring one here would switch
         // streaming off for exactly the case it was asked for. Cloud providers still need theirs.
@@ -2743,7 +2745,7 @@ object DictateController {
      */
     private fun localStreamingModelDir(context: Context): File? {
         if (!prefs.dictate.realtimeTranscription.get()) return null
-        val account = transcriptionAccount()
+        val account = realtimeAccount()
         if (presetFor(account).transcriptionApi != TranscriptionApi.LOCAL_ONDEVICE) return null
         // The live model has its own slot on the local account (#233) — `realtimeModel`, which for this
         // provider means the streaming model rather than a remote model id. The one-shot slot is also
@@ -2782,7 +2784,7 @@ object DictateController {
         // realtimeApiForActiveAccount() would reject it before ever getting here.
         val localModelDir = localStreamingModelDir(appContext)
         val api = if (localModelDir != null) null else realtimeApiForActiveAccount() ?: return null
-        val account = transcriptionAccount()
+        val account = realtimeAccount()
         val preset = presetFor(account)
         val model = if (localModelDir != null) {
             localModelDir.name
@@ -2796,6 +2798,7 @@ object DictateController {
         val language = prefs.dictate.activeInputLanguage.get().takeIf { it != DictateLanguages.DETECT }
         realtimeFinal.setLength(0)
         realtimeFailed = false
+        realtimeError = null
         realtimeCancelled = false
         _interimText.value = ""
         realtimeContext = appContext
@@ -2907,7 +2910,10 @@ object DictateController {
                     showLive(realtimeFinal.toString())
                 }
             }
-            override fun onError(t: Throwable) { realtimeFailed = true }
+            override fun onError(t: Throwable) {
+                realtimeError = t.message
+                realtimeFailed = true
+            }
             override fun onClosed() { closed.complete(Unit) }
         }
         val session = runCatching {
@@ -2934,7 +2940,7 @@ object DictateController {
                     trustUserCerts = account.trustUserCerts,
                 )
             }
-        }.getOrElse { realtimeFailed = true; null } ?: return null
+        }.getOrElse { realtimeError = it.message; realtimeFailed = true; null } ?: return null
         realtimeSession = session
         // On-device runs at the recorder's native rate, so no resampling step is needed.
         val targetRate = if (api == null) AudioDecode.TARGET_SAMPLE_RATE else RealtimeClient.sampleRateFor(api)
@@ -3068,6 +3074,7 @@ object DictateController {
                             else -> "emptyTranscript"
                         },
                     )
+                    if (realtimeFailed) notifyRealtimeFallback(appContext)
                     // Drop the live provisional text; the batch path commits fresh from the WAV. With the
                     // preview hidden there is nothing in the field to take back, and realtimeShown says so.
                     // What the user has edited stays, and the batch text leaves out what they took (#421).
@@ -3083,7 +3090,7 @@ object DictateController {
                 }
                 // History (issue #140): capture the metadata + WAV before deleting the cache file, so
                 // audio retention (if on) can copy it in during finalize; then drop the cache original.
-                val rtAccount = transcriptionAccount()
+                val rtAccount = realtimeAccount()
                 val rtPreset = presetFor(rtAccount)
                 val rtModel = rtAccount.realtimeModel.takeIf { it.isNotBlank() }
                     ?: rtPreset.defaultRealtimeModel ?: ""
@@ -5116,6 +5123,31 @@ object DictateController {
     private fun transcriptionAccount(): ProviderAccount {
         val id = prefs.dictate.transcriptionProviderId.get()
         return prefs.dictate.providerAccounts.get().getOrEmpty(id)
+    }
+
+    /** The account real-time streaming runs on: its own pick if set, else the transcription account. */
+    private fun realtimeAccount(): ProviderAccount =
+        prefs.dictate.providerAccounts.get().realtimeAccount(
+            prefs.dictate.realtimeProviderId.get(),
+            prefs.dictate.transcriptionProviderId.get(),
+        )
+
+    /**
+     * Says that the stream failed and the recording goes to the batch provider instead — the existing
+     * fallback, which used to happen without a word, so a wrong streaming model id looked like streaming
+     * simply being slow. The key is masked in case a transport error ever echoes the socket URL.
+     */
+    private fun notifyRealtimeFallback(appContext: Context) {
+        val rt = realtimeAccount()
+        val batch = transcriptionAccount()
+        val reason = realtimeError.orEmpty().let { if (rt.apiKey.isBlank()) it else it.replace(rt.apiKey, "***") }
+        val message = appContext.getString(
+            R.string.dictate__realtime_fallback_notice,
+            rt.displayName.ifBlank { presetFor(rt).displayName },
+            reason.ifBlank { "?" },
+            batch.displayName.ifBlank { presetFor(batch).displayName },
+        )
+        scope.launch(Dispatchers.Main) { Toast.makeText(appContext, message, Toast.LENGTH_LONG).show() }
     }
 
     /**

@@ -712,6 +712,14 @@ abstract class FlorisPreferenceModel : PreferenceModel() {
             key = "dictate__realtime_transcription",
             default = false,
         )
+        // Which provider streams when [realtimeTranscription] is on. Blank (the default, and what every
+        // existing install reads) follows transcriptionProviderId exactly as before; an id points streaming
+        // at another keyring account, so e.g. Groq can do batch while Gemini Live streams. The streaming
+        // model is that account's own `realtimeModel`, never its batch `transcriptionModel`.
+        val realtimeProviderId = string(
+            key = "dictate__realtime_provider_id",
+            default = "",
+        )
         // Whether the streaming transcript stays out of sight until the recording is stopped (issue #345).
         // The stream runs either way — this only decides whether its provisional words are typed into the
         // field as they arrive or held back and inserted in one piece at the end, which reads like a batch

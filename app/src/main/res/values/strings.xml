@@ -2402,6 +2402,13 @@
     <string name="dictate__providers_custom_warm_up" comment="Switch label: ping a sleeping self-hosted server early so it can wake up (#189)">Wake up early</string>
     <string name="dictate__providers_custom_warm_up_summary" comment="Explains the early wake-up request, sent when a recording starts (transcription) or a rewording is coming">Pings this server early so a sleeping machine has time to start</string>
     <string name="dictate__providers_realtime_model_default" comment="Marks the provider's default real-time model in the picker">Default</string>
+    <string name="dictate__realtime_provider_title" comment="Setting: which provider streams real-time transcription">Real-time provider</string>
+    <string name="dictate__realtime_provider_follow" comment="Real-time provider option that follows the transcription provider. {name} is that provider">Same as transcription ({name})</string>
+    <string name="dictate__realtime_provider_unsupported" comment="Summary when the real-time provider cannot stream. {name} is the provider">{name} cannot stream — recordings are transcribed after you stop</string>
+    <string name="dictate__realtime_provider_none" comment="Shown in the real-time provider dialog when no configured provider can stream">No configured provider supports real-time transcription yet. Add one with real-time support (for example Google Gemini, OpenAI, Soniox or ElevenLabs) under Providers.</string>
+    <string name="dictate__realtime_model_provider_default" comment="Real-time model option: the provider's default. {model} is the model id">Provider default ({model})</string>
+    <string name="dictate__realtime_model_custom" comment="Text field label for typing any real-time model id">Custom model ID</string>
+    <string name="dictate__realtime_fallback_notice" comment="Toast when real-time streaming failed and the recording is transcribed in batch instead. %1$s streaming provider, %2$s error, %3$s batch provider">Real-time transcription with %1$s failed (%2$s). Transcribed with %3$s instead.</string>
     <string name="dictate__longform_title" comment="Setting: long-form segmented dictation">Long-form dictation</string>
     <string name="dictate__longform_summary" comment="Summary for the long-form dictation setting">Transcribe long dictations in the background, part by part while you keep talking — tap Next during recording to send the current part, so there is no long wait at the end.</string>
     <string name="dictate__longform_autosplit_title" comment="Setting: use Silero VAD and Smart Turn to auto-cut a long-form segment">Smart auto-split</string>

@@ -396,3 +396,11 @@ data class ProviderAccounts(
         val Empty = ProviderAccounts(emptyMap())
     }
 }
+
+/**
+ * The account real-time streaming runs on: the one picked for streaming when it is still in the keyring,
+ * otherwise the transcription account. A blank or removed pick therefore means "same as transcription",
+ * which is the behaviour from before the two could differ.
+ */
+fun ProviderAccounts.realtimeAccount(realtimeProviderId: String, transcriptionProviderId: String): ProviderAccount =
+    realtimeProviderId.takeIf { it.isNotBlank() }?.let { get(it) } ?: getOrEmpty(transcriptionProviderId)

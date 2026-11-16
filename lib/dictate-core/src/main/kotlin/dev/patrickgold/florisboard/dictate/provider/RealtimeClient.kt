@@ -870,6 +870,16 @@ private class GeminiRealtimeSession(
             android.util.Log.w("DictateRT", "gemini realtime WS failed (http=${response?.code}): ${t.message}")
             emitError(t)
         }
+        // Google refuses a session with a close frame, not an HTTP error: an unknown or non-live model id,
+        // a bad key or a quota is a 1007/1008/1011 with the reason in text. Without this the refusal only
+        // surfaced as onClosed after the tail wait, and as an empty transcript rather than a failure.
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            if (code == 1000) {
+                finalizeAndClose(webSocket)
+            } else {
+                emitError(RuntimeException("Gemini closed the realtime stream ($code): $reason"))
+            }
+        }
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = finalizeAndClose(webSocket)
     }
 
